@@ -205,10 +205,11 @@
     const result = document.getElementById('result');
 
     // Endpoint exacto para subir archivos
-    const UPLOAD_URL = 'https://ivc3k5doik.execute-api.us-east-1.amazonaws.com/test/upload';
-
+    const UPLOAD_URL = 'https://cors-anywhere.herokuapp.com/https://ivc3k5doik.execute-api.us-east-1.amazonaws.com/test/upload';
     // Endpoint para listar archivos (GET)
-    const LIST_URL = 'https://1pzlbysn7b.execute-api.us-east-1.amazonaws.com/test/archivos?limit=5';
+  const LIST_URL   = 'https://cors-anywhere.herokuapp.com/https://1pzlbysn7b.execute-api.us-east-1.amazonaws.com/test/archivos?limit=5';
+
+
 
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -264,153 +265,131 @@
      * @param {File} file 
      */
     async function uploadFile(file) {
-      // Reset de UI
-      result.style.display = 'none';
-      progressBar.style.width = '0%';
+    result.style.display = 'none';
+    progressBar.style.width = '0%';
 
-      try {
-        // 1) Convertir a Base64
-        const base64Body = await fileToBase64(file);
-        // Ya tenemos hasta 50% en la barra
+    try {
+      // 1) Convertir a Base64
+      const base64Body = await fileToBase64(file);
 
-        // 2) Construir el JSON para el body
-        const payload = {
-          filename: file.name,
-          body: base64Body,
-          isBase64Encoded: true
-        };
+      // 2) Construir payload
+      const payload = {
+        filename: file.name,
+        body: base64Body,
+        isBase64Encoded: true
+      };
 
-        // 3) Enviar POST al endpoint con los headers indicados
-        const response = await fetch(UPLOAD_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
+      // 3) Enviar POST: al estar detrás de cors-anywhere, YA viene con header CORS
+      const response = await fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
-        // 4) Si el status es exactamente 200 → éxito
-        console.log(response);
-        if (response.status === 200) {
-          progressBar.style.width = '100%';
-          // Intentamos parsear el JSON, pero aunque falle, ya sabemos que fue 200
-          let data = null;
-          try {
-            data = await response.json();
-          } catch (parseErr) {
-            console.warn('No se pudo parsear JSON del body, pero el status fue 200');
-          }
-          // Mostrar mensaje de éxito
-          result.style.display = 'block';
-          result.textContent = `Archivo "${file.name}" subido correctamente.`;
-          // Si backend devolvió un campo "url", mostrar enlace
-          if (data && data.url) {
-            const link = document.createElement('a');
-            link.href = data.url;
-            link.textContent = '(Ver en S3)';
-            link.target = '_blank';
-            result.appendChild(document.createElement('br'));
-            result.appendChild(link);
-          }
-          // Después de confirmar éxito, recargar la lista de archivos
-          loadArchivos();
-
-        } else {
-          // Cualquier otro código distinto de 200 → error
-          progressBar.style.width = '0%';
-          const errorText = await response.text();
-          result.style.display = 'block';
-          result.textContent = `Error al subir: ${response.status} ${response.statusText}`;
-          console.error('Respuesta de error:', errorText);
+      // 4) Si respuesta 200 → éxito
+      if (response.status === 200) {
+        progressBar.style.width = '100%';
+        let data = null;
+        try {
+          data = await response.json();
+        } catch (e) {
+          console.warn('No JSON válido, pero status 200');
         }
-
-      } catch (err) {
-        // Red, CORS u otras excepciones
-        progressBar.style.width = '0%';
         result.style.display = 'block';
-        result.textContent = `Ocurrió un error: ${err.message}`;
-        console.error('Excepción durante la subida:', err);
-      }
-    }
-
-    /**
-     * Obtiene la lista de archivos desde el endpoint y la muestra en la tabla.
-     */
-    async function loadArchivos() {
-      const tbody = document.getElementById('archivos-tbody');
-      tbody.innerHTML = ''; // Limpiar filas anteriores
-
-      try {
-        const response = await fetch(LIST_URL, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          console.error('Error al obtener lista de archivos:', response.status, response.statusText);
-          return;
+        result.textContent = `Archivo "${file.name}" subido correctamente.`;
+        if (data && data.url) {
+          const link = document.createElement('a');
+          link.href = data.url;
+          link.textContent = '(Ver en S3)';
+          link.target = '_blank';
+          result.appendChild(document.createElement('br'));
+          result.appendChild(link);
         }
-
-        const json = await response.json();
-        // El campo "body" viene como string JSON, así que lo parseamos:
-        const archivos = JSON.parse(json.body);
-
-        if (!Array.isArray(archivos) || archivos.length === 0) {
-          const filaVacia = document.createElement('tr');
-          const td = document.createElement('td');
-          td.colSpan = 4;
-          td.style.textAlign = 'center';
-          td.textContent = 'No hay archivos recientes.';
-          filaVacia.appendChild(td);
-          tbody.appendChild(filaVacia);
-          return;
-        }
-
-        archivos.forEach((item) => {
-          const tr = document.createElement('tr');
-
-          // ID
-          const tdId = document.createElement('td');
-          tdId.textContent = item.id;
-          tr.appendChild(tdId);
-
-          // Nombre de archivo
-          const tdNombre = document.createElement('td');
-          tdNombre.textContent = item.nombre_archivo;
-          tr.appendChild(tdNombre);
-
-          // Fecha subida (formateada)
-          const tdFecha = document.createElement('td');
-          const fechaObj = new Date(item.fecha_subida);
-          const fechaLegible = fechaObj.toLocaleString('es-CL', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          });
-          tdFecha.textContent = fechaLegible;
-          tr.appendChild(tdFecha);
-
-          // Enlace S3
-          const tdLink = document.createElement('td');
-          const enlace = document.createElement('a');
-          enlace.href = item.s3_url;
-          enlace.textContent = 'Ver/Descargar';
-          enlace.target = '_blank';
-          tdLink.appendChild(enlace);
-          tr.appendChild(tdLink);
-
-          tbody.appendChild(tr);
-        });
-
-      } catch (err) {
-        console.error('Error al parsear o mostrar la lista de archivos:', err);
+        loadArchivos();
+      } else {
+        progressBar.style.width = '0%';
+        const errorText = await response.text();
+        result.style.display = 'block';
+        result.textContent = `Error al subir: ${response.status} ${response.statusText}`;
+        console.error('Error body:', errorText);
       }
+    } catch (err) {
+      progressBar.style.width = '0%';
+      result.style.display = 'block';
+      result.textContent = `Ocurrió un error: ${err.message}`;
+      console.error('Excepción durante la subida:', err);
     }
+  }
+
+  async function loadArchivos() {
+    const tbody = document.getElementById('archivos-tbody');
+    tbody.innerHTML = '';
+
+    try {
+      const response = await fetch(LIST_URL, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) {
+        console.error('Error lista:', response.status, response.statusText);
+        return;
+      }
+      const json = await response.json();
+      const archivos = JSON.parse(json.body);
+
+      if (!Array.isArray(archivos) || archivos.length === 0) {
+        const filaVacia = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4;
+        td.style.textAlign = 'center';
+        td.textContent = 'No hay archivos recientes.';
+        filaVacia.appendChild(td);
+        tbody.appendChild(filaVacia);
+        return;
+      }
+
+      archivos.forEach(item => {
+        const tr = document.createElement('tr');
+
+        const tdId = document.createElement('td');
+        tdId.textContent = item.id;
+        tr.appendChild(tdId);
+
+        const tdNombre = document.createElement('td');
+        tdNombre.textContent = item.nombre_archivo;
+        tr.appendChild(tdNombre);
+
+        const tdFecha = document.createElement('td');
+        const fechaObj = new Date(item.fecha_subida);
+        tdFecha.textContent = fechaObj.toLocaleString('es-CL', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        tr.appendChild(tdFecha);
+
+        const tdLink = document.createElement('td');
+        const enlace = document.createElement('a');
+        enlace.href = item.s3_url;
+        enlace.textContent = 'Ver/Descargar';
+        enlace.target = '_blank';
+        tdLink.appendChild(enlace);
+        tr.appendChild(tdLink);
+
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Error al cargar archivos:', err);
+    }
+  }
+
 
     // Al cargar la página, obtenemos y mostramos la lista de archivos
     window.addEventListener('DOMContentLoaded', () => {
