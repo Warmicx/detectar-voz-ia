@@ -16,6 +16,12 @@
       --color-header: #121212;
       --color-borde: #444;
       --color-hover: #333;
+      --color-success: #28a745;
+      --color-warning: #ffc107;
+      --color-error: #dc3545;
+      --color-info: #17a2b8;
+      --color-ia: #6f42c1;
+      --color-humano: #20c997;
       --radio-bordes: 8px;
       --sombra: 0 4px 12px rgba(0, 0, 0, 0.5);
       --fuente-principal: 'Segoe UI', sans-serif;
@@ -83,6 +89,7 @@
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
     }
 
+    /* ——— DROP ZONE MEJORADA ——— */
     /* ——— DROP ZONE MEJORADA ——— */
     .drop-zone {
       position: relative;
@@ -233,6 +240,44 @@
       background-color: #1a1a1a;
     }
 
+    /* Celdas con color de estado */
+    .estado-1 {
+      background-color: var(--color-warning);
+      color: #000;
+      font-weight: bold;
+    }
+
+    .estado-2 {
+      background-color: var(--color-info);
+      color: #000;
+      font-weight: bold;
+    }
+
+    .estado-3 {
+      background-color: var(--color-success);
+      color: #000;
+      font-weight: bold;
+    }
+
+    .estado-4 {
+      background-color: var(--color-error);
+      color: #000;
+      font-weight: bold;
+    }
+
+    /* Celdas con color de resultado */
+    .resultado-0 {
+      background-color: var(--color-ia);
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .resultado-1 {
+      background-color: var(--color-humano);
+      color: #000;
+      font-weight: bold;
+    }
+
     /* Ajuste para celdas fijas */
     #archivos-table th:nth-child(1),
     #archivos-table td:nth-child(1) {
@@ -241,13 +286,13 @@
 
     #archivos-table th:nth-child(4),
     #archivos-table td:nth-child(4) {
-      width: 80px; /* Estado */
+      width: 120px; /* Estado */
       text-align: center;
     }
 
     #archivos-table th:nth-child(6),
     #archivos-table td:nth-child(6) {
-      width: 100px; /* Resultado */
+      width: 120px; /* Resultado */
       text-align: center;
     }
 
@@ -284,8 +329,8 @@
     <h1>Sube tu archivo de audio</h1>
 
     <label class="drop-zone" id="drop-zone">
-      <p>📤 Arrastra tu archivo de audio aquí<br>o haz clic para seleccionar</p>
-      <input type="file" accept="audio/*" id="file-input" />
+      <p>📤 Arrastra tu archivo de audio .wav aquí<br>o haz clic para seleccionar</p>
+      <input type="file" accept=".wav" id="file-input" />
     </label>
 
     <div class="progress-container">
@@ -383,11 +428,27 @@
     }
 
     /**
+     * Valida que solo se permita .wav
+     * @param {File} file 
+     */
+    function validarFormatoWav(file) {
+      const nombre = file.name.toLowerCase();
+      if (!nombre.endsWith('.wav')) {
+        alert('Solo se permiten archivos con extensión .wav');
+        return false;
+      }
+      return true;
+    }
+
+    /**
      * Sube el archivo al endpoint, codificado en Base64.
      * Independientemente de la respuesta que devuelva, siempre se mostrará "subido correctamente".
      * @param {File} file 
      */
     async function uploadFile(file) {
+      // Verificar formato
+      if (!validarFormatoWav(file)) return;
+
       // Reset de UI
       result.style.display = 'none';
       progressBar.style.width = '0%';
@@ -443,6 +504,40 @@
         } catch (reloadErr) {
           console.warn('No se pudo cargar la lista de archivos:', reloadErr);
         }
+      }
+    }
+
+    /**
+     * Mapea el código de estado numérico a la etiqueta correspondiente y agrega emoji.
+     * @param {number|string} codigo 
+     */
+    function textoEstado(codigo) {
+      switch (Number(codigo)) {
+        case 1:
+          return { texto: '📥 audio en cola', clase: 'estado-1' };
+        case 2:
+          return { texto: '⏳ procesando audio', clase: 'estado-2' };
+        case 3:
+          return { texto: '✅ procesado correctamente', clase: 'estado-3' };
+        case 4:
+          return { texto: '❌ error', clase: 'estado-4' };
+        default:
+          return { texto: '-', clase: '' };
+      }
+    }
+
+    /**
+     * Mapea el resultado numérico a la etiqueta correspondiente y agrega emoji.
+     * @param {number|string} codigo 
+     */
+    function textoResultado(codigo) {
+      switch (Number(codigo)) {
+        case 0:
+          return { texto: '🤖 IA', clase: 'resultado-0' };
+        case 1:
+          return { texto: '🧑 Humano', clase: 'resultado-1' };
+        default:
+          return { texto: '-', clase: '' };
       }
     }
 
@@ -510,8 +605,10 @@
           tr.appendChild(tdFecha);
 
           // Estado
+          const estadoInfo = textoEstado(item.estado);
           const tdEstado = document.createElement('td');
-          tdEstado.textContent = item.estado;
+          tdEstado.textContent = estadoInfo.texto;
+          if (estadoInfo.clase) tdEstado.classList.add(estadoInfo.clase);
           tr.appendChild(tdEstado);
 
           // Probabilidad (prob_h)
@@ -520,8 +617,10 @@
           tr.appendChild(tdProb);
 
           // Resultado
+          const resultadoInfo = textoResultado(item.resultado);
           const tdResultado = document.createElement('td');
-          tdResultado.textContent = item.resultado;
+          tdResultado.textContent = resultadoInfo.texto;
+          if (resultadoInfo.clase) tdResultado.classList.add(resultadoInfo.clase);
           tr.appendChild(tdResultado);
 
           // Escuchar (reproductor de audio)
